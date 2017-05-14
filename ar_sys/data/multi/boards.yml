@@ -1,0 +1,10 @@
+%YAML:1.0
+ar_sys_boards:
+   - { name:"/1", path:"sideboard1.yml", marker_size:0.069 }
+   - { name:"/2", path:"sideboard1_center.yml", marker_size:0.139 }
+   - { name:"/3", path:"sideboard2.yml", marker_size:0.069 }
+   - { name:"/4", path:"sideboard2_center.yml", marker_size:0.139 }
+   - { name:"/5", path:"sideboard3.yml", marker_size:0.069 }
+   - { name:"/6", path:"sideboard3_center.yml", marker_size:0.139 }
+   - { name:"/7", path:"sideboard4.yml", marker_size:0.069 }
+   - { name:"/8", path:"sideboard4_center.yml", marker_size:0.139 }

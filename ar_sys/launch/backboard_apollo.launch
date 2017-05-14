@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<launch>
+       <node ns="/" pkg="cam_info_publisher" type="cam_info_publisher" name="cam_info_publisher" output="screen">
+		<remap from="/left/camera_info" to="/Boreas/left/camera_info" />
+                <remap from="/right/camera_info" to="/Boreas/right/camera_info" />
+		<remap from="/left/image_raw" to="/Boreas/left/image_raw" />
+		<remap from="/right/image_raw" to="/Boreas/right/image_raw" />
+       </node>
+          
+       <!--node ns="/" respawn="true" pkg="joy" type="joy_node" name="joy_node" >
+                <param name="dev" type="string" value="/dev/input/js0" />
+                <param name="deadzone" value="0.12" />
+       </node!-->
+	
+        <arg name="board_config" default="$(find ar_sys)/data/single/singleboard.yml" />
+	<node ns="/" pkg="ar_sys" type="single_board" name="ar_sys" output="screen">
+		<remap from="/camera_info" to="/Apollo/camera_info" />
+		<remap from="/image" to="/Apollo/image_raw" />
+		<remap from="/camera_frame_id" to="/Apollo_cam"/>
+
+		<param name="image_is_rectified" type="bool" value="true"/>
+		<param name="board_config" type="string" value="$(arg board_config)"/>
+		<param name="draw_markers" type="bool" value="true" />
+		<param name="draw_markers_cube" type="bool" value="true" />
+		<param name="draw_markers_axis" type="bool" value="true" />
+                <param name="noise_size" type="double" value="0.1"/>
+                <param name="marker_size" type="double" value = "0.151"/>
+	</node>
+   
+</launch>
+

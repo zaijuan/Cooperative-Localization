@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<launch>
+	
+       <node ns="/Apollo" pkg="image_proc" type="image_proc" name="apollo_monoimage_proc" />
+
+       <node ns="/Boreas" pkg="stereo_image_proc" type="stereo_image_proc" name="boreas_stereoimage_proc" />
+
+
+        <arg name="board_config" default="$(find ar_sys)/data/single/singleboard.yml" />
+	<node ns="/" pkg="ar_sys" type="single_board" name="ar_sys" output="screen">
+		<remap from="/camera_info" to="/Apollo/camera_info" />
+		<remap from="/image" to="/Apollo/image_rect" />
+		<remap from="/camera_frame_id" to="/Apollo_cam"/>
+
+		<param name="image_is_rectified" type="bool" value="true"/>
+		<param name="board_config" type="string" value="$(arg board_config)"/>
+		<param name="draw_markers" type="bool" value="true" />
+		<param name="draw_markers_cube" type="bool" value="true" />
+		<param name="draw_markers_axis" type="bool" value="true" />
+	</node>
+
+</launch>
+

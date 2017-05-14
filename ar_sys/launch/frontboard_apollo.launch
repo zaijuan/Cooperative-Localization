@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<launch>
+
+        <arg name="board_config" default="$(find ar_sys)/data/single/singleboard.yml" />
+	<node ns="/" pkg="ar_sys" type="single_board" name="ar_sys" output="screen">
+		<remap from="/camera_info" to="/Apollo/camera_info" />
+		<remap from="/image" to="/Apollo/image_raw" />
+		<remap from="/camera_frame_id" to="/Apollo_cam"/>
+
+		<param name="image_is_rectified" type="bool" value="true"/>
+		<param name="board_config" type="string" value="$(arg board_config)"/>
+		<param name="draw_markers" type="bool" value="true" />
+		<param name="draw_markers_cube" type="bool" value="true" />
+		<param name="draw_markers_axis" type="bool" value="true" />
+                <param name="noise_size" type="double" value="0.3"/>
+                <param name="marker_size" type="double" value = "0.4426"/>
+	</node>
+   
+</launch>
+
