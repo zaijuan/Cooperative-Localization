@@ -1,0 +1,86 @@
+#include <ros/ros.h>
+#include <geometry_msgs/Twist.h>
+#include <std_msgs/Bool.h>
+#include <sensor_msgs/Joy.h>
+
+class TeleopRobot
+{
+public:
+  TeleopRobot();
+
+private:
+  void joyCallback(const sensor_msgs::Joy::ConstPtr& joy);
+  void disablejoyCallback(const std_msgs::Bool::ConstPtr& dis_joy);
+  ros::NodeHandle nh_;
+
+  int linear_x_pos, linear_x_neg, linear_y_pos, linear_y_neg, angular_z_pos, angular_z_neg;
+  double l_scale_x, l_scale_y, a_scale_z;
+  bool  is_Joy_Disable;
+  ros::Publisher vel_pub_;
+	ros::Publisher mode_Apollo_pub_;
+  ros::Subscriber joy_sub_;
+	ros::Subscriber disjoy_sub_; 
+};
+
+TeleopRobot::TeleopRobot():
+  linear_x_pos(0),
+	linear_x_neg(2),
+	linear_y_pos(1),
+	linear_y_neg(3),
+  angular_z_pos(4),
+	angular_z_neg(5),
+	is_Joy_Disable(0)
+{
+  nh_.param("button_linear_x_pos",linear_x_pos,linear_x_pos);
+	nh_.param("button_linear_x_neg",linear_x_neg,linear_x_neg);
+	nh_.param("button_linear_y_pos",linear_y_pos,linear_y_pos);
+	nh_.param("button_linear_y_neg",linear_y_neg,linear_y_neg);
+	nh_.param("button_angular_z_pos",angular_z_pos,angular_z_pos);
+	nh_.param("button_angular_z_neg",angular_z_neg,angular_z_neg);
+  nh_.param("scale_linear_x", l_scale_x, l_scale_x);
+  nh_.param("scale_linear_y", l_scale_y, l_scale_y);
+	nh_.param("scale_angular_z",a_scale_z,a_scale_z);
+  vel_pub_ = nh_.advertise<geometry_msgs::Twist>("apollo/cmd_vel", 10);
+	mode_Apollo_pub_ = nh_.advertise<std_msgs::Bool>("apollo_Mode",10);
+	disjoy_sub_ = nh_.subscribe<std_msgs::Bool>("disable_Joy",1,&TeleopRobot::disablejoyCallback,this);
+  joy_sub_ = nh_.subscribe<sensor_msgs::Joy>("joy", 10, &TeleopRobot::joyCallback, this);
+}
+
+void TeleopRobot::joyCallback(const sensor_msgs::Joy::ConstPtr& joy)
+{
+	std_msgs::Bool is_Apollo_Moving;
+  geometry_msgs::Twist vel;
+/*	if (is_Joy_Disable){
+	vel.linear.x = 0;
+	vel.linear.y = 0;
+	vel.angular.z = 0;
+	vel_pub_.publish(vel);
+	is_Apollo_Moving.data = false;
+	mode_Apollo_pub_.publish(is_Apollo_Moving);
+	}
+	else{
+	vel.linear.x = l_scale_x *(joy->buttons[linear_x_pos]-joy->buttons[linear_x_neg]);
+	vel.linear.y = l_scale_y *(joy->buttons[linear_y_pos]-joy->buttons[linear_y_neg]);
+	vel.angular.z = a_scale_z *(joy->buttons[angular_z_pos]-joy->buttons[angular_z_neg]);
+  vel_pub_.publish(vel);
+	is_Apollo_Moving.data = true;
+	mode_Apollo_pub_.publish(is_Apollo_Moving);
+	}*/
+vel.linear.x = l_scale_x *(joy->buttons[linear_x_pos]-joy->buttons[linear_x_neg]);
+	vel.linear.y = l_scale_y *(joy->buttons[linear_y_pos]-joy->buttons[linear_y_neg]);
+	vel.angular.z = a_scale_z *(joy->buttons[angular_z_pos]-joy->buttons[angular_z_neg]);
+  vel_pub_.publish(vel);
+	is_Apollo_Moving.data = true;
+	mode_Apollo_pub_.publish(is_Apollo_Moving);
+}
+
+void TeleopRobot::disablejoyCallback(const std_msgs::Bool::ConstPtr& dis_joy){
+			is_Joy_Disable = dis_joy->data;
+}
+
+int main(int argc, char** argv)
+{
+				ros::init(argc, argv, "teleop_robot");
+				TeleopRobot teleop_robot;
+				ros::spin();
+}

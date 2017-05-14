@@ -1,0 +1,188 @@
+#include <ros/ros.h>
+#include <geometry_msgs/Twist.h>
+#include <std_msgs/Bool.h>
+#include <sensor_msgs/Joy.h>
+
+class TeleopRobot
+{
+public:
+  TeleopRobot();
+
+private:
+  void joyCallback(const sensor_msgs::Joy::ConstPtr& joy);
+  void disablejoyCallback(const std_msgs::Bool::ConstPtr& dis_joy);
+  ros::NodeHandle nh_;
+  void change_to_quaternion(float angle_z, float& qx, float& qy, float& qz, float& qw);
+  void call_service_func(float dist_x, float_dist_y, float angle_z);	
+	bool temp_scale1, temp_scale2, temp_scale3, temp_scale4;
+	bool free_MODE, jump_MODE;
+  bool is_Joy_disable;
+	float dist_x, dist_y, angle_z;
+	int speed_x, speed_y, speed_z
+  ros::Publisher vel_pub_;
+	ros::Publisher mode_Apollo_pub_;
+	ros::Publisher dist_pub_;
+  ros::Subscriber joy_sub_;
+	ros::Subscriber disjoy_sub_; 
+	ros::ServiceClient long_dist_move_client_;
+	joy_Apollo::target::Request req;
+	joy_apollo::target::Response resp;
+};
+
+TeleopRobot::TeleopRobot():
+				temp_scale1(0),temp_scale2(0),temp_scale3(0),temp_scale4(0),
+				free_MODE(0),jump_MODE(0),
+				is_Joy_disable(0),
+				dist_x(0),dist_y(0),angle_z(0),
+				speed_x(0),speed_y(0),speed_z(0)
+{
+				vel_pub_ = nh_.advertise<geometry_msgs::Twist>("apollo/cmd_vel", 10);
+				mode_Apollo_pub_ = nh_.advertise<std_msgs::Bool>("apollo_Mode",10);
+				disjoy_sub_ = nh_.subscribe<std_msgs::Bool>("disable_Joy",1,&TeleopRobot::disablejoyCallback,this);
+				joy_sub_ = nh_.subscribe<sensor_msgs::Joy>("joy", 1, &TeleopRobot::joyCallback, this);
+				long_dist_move_client_ = nh_.serviceClient<joy_apollo::target>("move_target");
+}
+
+void TeleopRobot::call_service_func(float dist_x, float dist_y, float angle_z){
+				req.target.position.x = dist_x;
+				req.target.position.y = dist_y;
+				req.target.position.z = 0;
+				req.target.orientation.x= qx;
+				req.target.orientation.y= qy;
+				req.target.orientation.z= qz;
+				req.target.orientation.w= qw;
+				bool target_reached = long_dist_move_client_.call(req,resp);
+				if ( target_reached ) { ROS_INFO("The target has been reached.");
+				ROS_INFO_STREAM("The X-direction error is:"<<resp.x_error<<". Along Y is:"<<resp.y_error<<".Rotation difference is about:"<<resp.angle_error);
+				}
+				if ( !target_reached ) ROS_INFO("The target has not been reached. Check what happened.");
+
+}
+
+void TeleopRobot::joyCallback(const sensor_msgs::Joy::ConstPtr& joy)
+{
+				geometry_msgs::Twist vel;
+
+				if( is_Joy_disable == 0 ){
+
+								if( joy->buttons[8]==1 ){
+												free_MODE = 1;
+												jump_MODE = 0;
+												ROS_INFO_STREAM("Now we are in FREE MODE."); }
+
+								if( joy->butons[9] == 1 ){
+												jump_MODE = 1;
+												free_MODE = 0; 
+												ROS_INFO_STREAM("Now we are in JUMP MODE, please set the translation and rotation."); }
+
+								if( free_MODE == 1 ){
+												int speed_scale =0;
+												if( joy->buttons[0] ==1 ){
+																speed_scale=1;
+												}
+												if( joy->buttons[0] ==1 ){
+																speed_scale=2;
+												}
+												if( joy->buttons[0] ==1 ){
+																speed_scale=3;
+												}
+												if( joy->buttons[0] ==1 ){
+																speed_scale=4;
+												}
+												// publish the real-time velocity based on the joy input.
+												{
+																vel.linear.x = speed_scale*(joy->axes[0]+joy->axes[2]);
+																vel.linear.y = speed_scale*(joy->axes[1]+joy->axes[3]);
+																vel.angular.z = 0;
+																vel_pub_.publish(vel);
+																ROS_INFO_STREAM("The real-time velocity of Apollo is:" << vel.linear.x << " " << vel.linear.y <<" "<<vel.angular.z);
+																is_Apollo_moving.data = true;
+																mode_Apollo_pub_.publish(is_Apollo_moving);
+												}
+								} 
+
+								if( jump_MODE == 1 ){
+												if( joy->buttons[0]==1 ){ temp_scale1=1;temp_scale2=0;temp_scale3=0;temp_scale4=0;}
+												if( joy->buttons[1]==1 ){ temp_scale1=0;temp_scale2=1;temp_scale3=0;temp_scale4=0;}
+												if( joy->buttons[2]==1 ){ temp_scale1=0;temp_scale2=0;temp_scale3=1;temp_scale4=0;}
+												if( joy->buttons[3]==1 ){ temp_scale1=0;temp_scale2=0;temp_scale3=0;temp_scale4=1;}
+												if( joy->buttons[6]==1 ){ angle_z -= 1*temp_scale1 + 2*temp_scale2 + 5*temp_scale3 + 10*temp_scale4;
+																ROS_INFO_STREAM("The current Angle you want to move is:" << angle_z);}
+												if( joy->buttons[7]==1 ){ angle_z += 1*temp_scale1 + 2*temp_scale2 + 5*temp_scale3 + 10*temp_scale4;
+																ROS_INFO_STREAM("The current Angle you want to move is:" << angle_z);}
+												if( joy->axes[0] ){ dist_y = dist_y + joy->axes[0]*(10*temp_scale1 + 20*temp_scale2 + 50*temp_scale3 + 100*temp_scale4);
+																ROS_INFO_STREAM("The current Y-direction distance is set as:" << dist_y);}
+												if( joy->axes[1] ){ dist_x = dist_x + joy->axes[1]*(10*temp_scale1 + 20*temp_scale2 + 50*temp_scale3 + 100*temp_scale4);
+																ROS_INFO_STREAM("The current X-direction distance is set as:" << dist_x);}
+												if( joy->buttons[5]==1 ) {
+																is_Joy_disable = 1;
+																dist_x = dist_x/100; dist_y = dist_y/100; angle_z = angle_z*3.14/180;
+																ROS_INFO_STREAM("The overall set is finished. Now move Apollo to X:"<<dist_x <<"m. Y:"<< dist_y <<"m. Rotation:"<<angle_z<<".");
+																float qx,qy,qz,qw;
+																change_to_quaternion(angle_z, qx, qy, qz, qw);
+																call_service_func(dist_x, dist_y, angle_z);
+																is_Joy_disable = 0;
+																temp_scale1=0; temp_scale2=0; temp_scale3=0; temp_scale4=0;
+																dist_x=0; dist_y=0;	angle_z=0;
+												}
+								}
+
+				}
+
+				if( is_Joy_disable==1 ){
+								vel.linear.x =0;
+								vel.linear.y =0;
+								vel.angular.z =0;
+								vel_pub_.publish(vel);
+								is_Apollo_moving.data = false;
+								mode_Apollo_pub_.publish(is_Apollo_moving);
+								ROS_INFO_STREAM("Now the joy input will not work. Apollo stops. Boreas begins to move.");
+				}
+
+}
+
+void TeleopRobot::disablejoyCallback(const std_msgs::Bool::ConstPtr& dis_joy){
+				is_Joy_disable = dis_joy->data;
+}
+
+void TeleopRobot::change_to_quaternion(float angle_z, float& qx, float& qy, float& qz, float& qw){
+				float mat[3][3]={cos(angle_z),-sin(angle_z),0;sin(angle_z),cos(angle_z),0;0,0,1};
+				float trace = mat[0][0] + mat[1][1] + mat[2][2];
+
+				if (trace > 0) { 
+								float S = sqrt(trace+1.0) * 2; // S=4*qw 
+								qw = 0.25 * S;
+								qx = (mat[2][1] - mat[1][2]) / S;
+								qy = (mat[0][2] - mat[2][0]) / S; 
+								qz = (mat[1][0] - mat[0][1]) / S; 
+				} else if ((mat[0][0] > mat[1][1])&(mat[0][0] > mat[2][2])) { 
+								float S = sqrt(1.0 + m00 - m11 - m22) * 2; // S=4*qx 
+								qw = (mat[2][1] - mat[1][2]) / S;
+								qx = 0.25 * S;
+								qy = (mat[0][1] + mat[1][0]) / S; 
+								qz = (mat[0][2] + mat[2][0]) / S; 
+				} else if (mat[1][1] > mat[2][2]) { 
+								float S = sqrt(1.0 + mat[1][1] - mat[0][0] - mat[2][2]) * 2; // S=4*qy
+								qw = (mat[0][2] - mat[2][0]) / S;
+								qx = (mat[0][1] + mat[1][0]) / S; 
+								qy = 0.25 * S;
+								qz = (mat[1][2] + mat[2][1]) / S; 
+				} else { 
+								float S = sqrt(1.0 + mat[2][2] - mat[0][0] - mat[1][1]) * 2; // S=4*qz
+								qw = (mat[1][0] - mat[0][1]) / S;
+								qx = (mat[0][2] + mat[2][0]) / S;
+								qy = (mat[1][2] + mat[2][1]) / S;
+								qz = 0.25 * S;
+				}
+				goal.orientation.x= qx;
+				goal.orientation.y= qy;
+				goal.orientation.z= qz;
+				goal.orientation.w= qw;
+}
+
+int main(int argc, char** argv)
+{
+				ros::init(argc, argv, "teleop_robot");
+				TeleopRobot teleop_robot;
+				ros::spin();
+}
