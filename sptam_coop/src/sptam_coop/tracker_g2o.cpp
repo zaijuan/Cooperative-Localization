@@ -94,7 +94,7 @@ CameraPose tracker_g2o::RefineCameraPose(
         const std::map<MapPoint*, Measurement>& measurementsLeft,
         const std::map<MapPoint*, Measurement>& measurementsRight,
         const std::vector<Measurement_3d_2d>& measurements_arsys,
-        const CameraPose& ApolloCamPose, bool include_marker_info)
+        const CameraPose& ApolloCamPose, bool include_marker_info, double & track_error)
 {
     size_t numStereoMeas = measurementsStereo.size();
     // We need at least 4 measurements to get a solution.
@@ -206,7 +206,8 @@ return estimatedCameraPose;
     }// end of adding marker_info part.
 
     std::cout<<"overall feature_error: "<<feature_error<<std::endl;
-
+    track_error = feature_error;
+        
     optimizer_.initializeOptimization();
     // TODO: pass as parameter
 
@@ -410,8 +411,8 @@ g2o::OptimizableGraph::Edge* tracker_g2o::BuildNewEdgeFromMarker(
 
     Eigen::Matrix<double, 2, 2> information = Eigen::Matrix<double, 2, 2>::Identity();
 
-    //    information(0,0) = 10;
-    //    information(1,1) = 10;
+//         information(0,0) = 1.2;
+//         information(1,1) = 1.2;
 
     e->setInformation(information);
 
