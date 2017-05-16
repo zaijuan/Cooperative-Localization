@@ -153,7 +153,7 @@ sptam::sptam_node::sptam_node(ros::NodeHandle& nh, ros::NodeHandle& nhp)
       T_A_camfront_new_B_backboard(tf::Quaternion(0,0,0,1),tf::Vector3(0,0,0)),
       exchange_turn_num(0),received_transform_num(0),START(false),Boreas_pose_optimized(false),
       static_keyframe_added(false),current_robot_state("Apollo_follows_dist_near"),
-      image_frame_num(0),optimize_turn_num(0),apollo_hdcam_info_received(false)
+      image_frame_num(0),optimize_turn_num(0),apollo_hdcam_info_received(false),min_min(1000)
 {
     // Get node parameters
     nhp.param<std::string>("odom_frame", odom_frame_, "/odom");
@@ -812,12 +812,15 @@ void sptam::sptam_node::onImages(
 
     else
     {
-        cv::Point3d currentCameraPosition;
-        cv::Vec4d currentCameraOrientation;
-        // the initial value is taken as the pose from the follower detector of apollo.
-        currentCameraPosition=cv::Point3d(T_world_B_camleft.getOrigin().getX(),T_world_B_camleft.getOrigin().getY(),T_world_B_camleft.getOrigin().getZ());
-        currentCameraOrientation=cv::Vec4d(T_world_B_camleft.getRotation().getW(),T_world_B_camleft.getRotation().getX(),T_world_B_camleft.getRotation().getY(),T_world_B_camleft.getRotation().getZ());
-        BoreasCoopPose = CameraPose( currentCameraPosition, currentCameraOrientation );
+        if( !(current_robot_state=="Apollo_is_moving") ){
+            cv::Point3d currentCameraPosition;
+            cv::Vec4d currentCameraOrientation;
+            // the initial value is taken as the pose from the follower detector of apollo.
+            currentCameraPosition=cv::Point3d(T_world_B_camleft.getOrigin().getX(),T_world_B_camleft.getOrigin().getY(),T_world_B_camleft.getOrigin().getZ());
+            currentCameraOrientation=cv::Vec4d(T_world_B_camleft.getRotation().getW(),T_world_B_camleft.getRotation().getX(),T_world_B_camleft.getRotation().getY(),T_world_B_camleft.getRotation().getZ());
+            BoreasCoopPose = CameraPose( currentCameraPosition, currentCameraOrientation );
+        }
+
     }
 
     // If SPTAM has not been initialized yet, do it
@@ -888,20 +891,11 @@ void sptam::sptam_node::onImages(
     // if the map is already initialized, do tracking
     else
     {
-        tf::Vector3 groundtruth_position(-(Boreas_groundtruth_pose.getOrigin().getY()-1.1002), Boreas_groundtruth_pose.getOrigin().getX()+1.1, Boreas_groundtruth_pose.getOrigin().getZ()-0.03945);
-        tf::Vector3 estimated_position(BoreasCoopPose.GetPosition().x, BoreasCoopPose.GetPosition().z, -BoreasCoopPose.GetPosition().y);
-
-        std_msgs::Float64 error_coop;
-        double error_x = groundtruth_position.getX()-estimated_position.getX();
-        double error_y = groundtruth_position.getY()-estimated_position.getY();
-
-        error_coop.data = std::sqrt( error_x*error_x + error_y*error_y );
-
-        std::cout<<"Before optimization: "<<error_coop.data<<std::endl;
+        double track_error = 0;
 
         if (  current_robot_state=="Boreas_is_moving" || current_robot_state=="Boreas_stops_dist_far" || current_robot_state=="Boreas_follows_dist_near" ){
 
-            BoreasCoopPose = sptam_->track(BoreasCoopPose, imageFeaturesLeft, imageFeaturesRight, imageLeft, imageRight, measurements_arsys, ApolloCamPose, true, false);
+            BoreasCoopPose = sptam_->track(BoreasCoopPose, imageFeaturesLeft, imageFeaturesRight, imageLeft, imageRight, measurements_arsys, ApolloCamPose, true, false, track_error);
 
             //will return the original BoreasCoopPose when there is not enough feature;
             measurements_arsys.clear();
@@ -913,81 +907,29 @@ void sptam::sptam_node::onImages(
 
             optimize_turn_num++;
 
-            //reset the Boreas's Pose to be the same as the one got from cooperative algorithm.
-            if( optimize_turn_num==30 ){
+            BoreasCoopPose = sptam_->track(BoreasCoopPose, imageFeaturesLeft, imageFeaturesRight, imageLeft, imageRight, measurements_arsys, ApolloCamPose, false, true, track_error);
 
-                BoreasCoopPose = sptam_->track(BoreasCoopPose, imageFeaturesLeft, imageFeaturesRight, imageLeft, imageRight, measurements_arsys, ApolloCamPose, false, true);
+            if (track_error < min_min ){
+                min_min = track_error;
 
                 cv::Vec4d new_quaternion = BoreasCoopPose.GetOrientationQuaternion();
                 cv::Point3d new_position = BoreasCoopPose.GetPosition();
-
                 T_world_B_camleft = tf::Transform(tf::Quaternion(new_quaternion[1],new_quaternion[2],new_quaternion[3],new_quaternion[0]),
                         tf::Vector3(new_position.x,new_position.y,new_position.z));
+
+            }
+
+            //reset the Boreas's Pose to be the same as the one got from cooperative algorithm.
+            if( optimize_turn_num==100 ){
                 T_world_B_camleft_static = T_world_B_camleft;
 
                 optimize_turn_num = 0;
                 static_keyframe_added = true;
                 Boreas_pose_optimized = false;
+                min_min = 1000;
             }
         }
 
-        //        if( current_robot_state=="Apollo_is_moving" && static_keyframe_added && !Boreas_pose_optimized){
-
-        //            optimize_turn_num++;
-        //            BoreasCoopPose = sptam_->track(BoreasCoopPose, imageFeaturesLeft, imageFeaturesRight, imageLeft, imageRight, measurements_arsys, ApolloCamPose, false, false);
-        //            BoreasPoses_.push_back(BoreasCoopPose);
-
-        //            if(optimize_turn_num==20){
-
-        //                double trans_x = 0;
-        //                double trans_y = 0;
-        //                double trans_z = 0;
-        //                double roll_sum  = 0;
-        //                double pitch_sum = 0;
-        //                double yaw_sum = 0;
-        //                double roll_single = 0;
-        //                double pitch_single = 0;
-        //                double yaw_single = 0;
-
-        //                for(size_t i=0; i<BoreasPoses_.size(); i++){
-        //                    trans_x += BoreasPoses_.at(i).GetPosition().x;
-        //                    trans_y += BoreasPoses_.at(i).GetPosition().y;
-        //                    trans_z += BoreasPoses_.at(i).GetPosition().z;
-
-        //                    tf::Quaternion quat_single(BoreasPoses_.at(i).GetOrientationQuaternion()[1],
-        //                            BoreasPoses_.at(i).GetOrientationQuaternion()[2],
-        //                            BoreasPoses_.at(i).GetOrientationQuaternion()[3],
-        //                            BoreasPoses_.at(i).GetOrientationQuaternion()[0]);
-
-        //                    tf::Matrix3x3 rotation_single(quat_single);
-        //                    rotation_single.getRPY(roll_single,pitch_single,yaw_single);
-        //                    roll_sum += roll_single;
-        //                    pitch_sum += pitch_single;
-        //                    yaw_sum += yaw_single;
-        //                }
-
-        //                trans_x = trans_x/BoreasPoses_.size();
-        //                trans_y = trans_y/BoreasPoses_.size();
-        //                trans_z = trans_z/BoreasPoses_.size();
-        //                roll_single = roll_sum/BoreasPoses_.size();
-        //                pitch_single = pitch_sum/BoreasPoses_.size();
-        //                yaw_single = yaw_sum/BoreasPoses_.size();
-
-        //                tf::Matrix3x3 rotation_base;
-        //                tf::Quaternion quaternion_base;
-        //                rotation_base.setEulerYPR(yaw_single,pitch_single,roll_single);
-        //                rotation_base.getRotation(quaternion_base);
-
-        //                T_world_B_camleft_static = tf::Transform(quaternion_base,tf::Vector3(trans_x, trans_y, trans_z));
-        //                T_world_B_camleft = T_world_B_camleft_static;
-
-        //                optimize_turn_num = 0;
-        //                Boreas_pose_optimized = true;
-        //                BoreasPoses_.clear();
-        //            }
-        //        }
-
-        //        if( current_robot_state=="Apollo_is_moving" && static_keyframe_added && Boreas_pose_optimized){
 
         if( current_robot_state=="Apollo_is_moving" && static_keyframe_added ){
 
@@ -1042,8 +984,6 @@ void sptam::sptam_node::onImages(
 
     error_coop.data = std::sqrt( error_x*error_x + error_y*error_y );
     localizationErrorPub_.publish(error_coop);
-
-    std::cout<<"After optimization: "<<error_coop.data<<std::endl;
 
     store_data_to_file_num++;
 
