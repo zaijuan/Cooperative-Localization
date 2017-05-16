@@ -53,7 +53,7 @@ public:
             const cv::Mat& imageLeft,
             const cv::Mat& imageRight,
             std::vector<Measurement_3d_2d> &measurements,const CameraPose& ApolloCamPose,
-            bool include_marker_info, bool is_Boreas_static);
+            bool include_marker_info, bool is_Boreas_static, double & track_error);
 
     inline void stop()
     { mapMaker_.Stop(); }
