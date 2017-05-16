@@ -72,7 +72,7 @@ CameraPose SPTAM::track(
         const ImageFeatures& imageFeaturesLeft, const ImageFeatures& imageFeaturesRight,
         const cv::Mat &imageLeft, const cv::Mat &imageRight,
         std::vector<Measurement_3d_2d> &arsys_measurements, const CameraPose& ApolloCamPose,
-        bool include_marker_info, bool is_Boreas_static)
+        bool include_marker_info, bool is_Boreas_static, double & track_error )
 {
     StereoFrame::UniquePtr frame( new StereoFrame(
                                       estimatedCameraPose, cameraParametersLeft_,
@@ -126,7 +126,7 @@ CameraPose SPTAM::track(
     // The tracker will try to refine the new camera pose
     // from the computed measurements
     CameraPose refinedCameraPose = tracker_.RefineCameraPose(
-                estimatedCameraPose, measurementsStereo, measurementsLeftOnly, emptyMap, arsys_measurements, ApolloCamPose, include_marker_info);
+                estimatedCameraPose, measurementsStereo, measurementsLeftOnly, emptyMap, arsys_measurements, ApolloCamPose, include_marker_info, track_error);
 
 #ifdef SHOW_PROFILING
     std::map<MapPoint*, Measurement> measurementsRightOnly = frame->GetMeasurementsRightOnly();
