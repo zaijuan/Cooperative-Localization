@@ -57,7 +57,7 @@ public:
                                 const std::map<MapPoint *, Measurement> &measurementsLeft,
                                 const std::map<MapPoint *, Measurement> &measurementsRight,
                                 const std::vector<Measurement_3d_2d> &measurements_arsys,
-                                const CameraPose& ApolloCamPose, bool include_marker_info);
+                                const CameraPose& ApolloCamPose, bool include_marker_info, double & track_error);
 
 protected:
     Eigen::Vector2d focal_length_,focal_length_hd;
